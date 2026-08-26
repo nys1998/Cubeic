@@ -60,6 +60,14 @@ class CubeFile:
                     grid_coords.append([coord[0], coord[1], coord[2], weight])
         return grid_coords
 
+class ProcessGrid:
+    '''
+    Process the Cube grid in xyzw format
+    '''
+    def __init__(self, data):
+        self.data = data
+        pass
+
 c = CubeFile("defc_afm1_up.cube")
 xyz = c.get_coordinates()
 pass
