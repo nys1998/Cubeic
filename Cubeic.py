@@ -59,7 +59,7 @@ class CubeFile:
                                             j * axis[1]/shape[1] + k * axis[2]/shape[2])
                     else:
                         coord = [i/(shape[0]),j/(shape[1]),k/(shape[2])]
-                    weight = self.data[i, j, k]
+                    weight = self.data[i, j, k] # type: ignore
                     grid_coords.append([coord[0], coord[1], coord[2], weight])
         return np.array(grid_coords)
 
@@ -90,7 +90,8 @@ class ProcessGrid():
 
         return self.frac_coord[np.argmin(np.linalg.norm(self.frac_coord[:,:-1]+subtract-coord,axis=1)),:-1] + subtract
 
-    def frac_to_abs(coord:np.ndarray,axes:np.ndarray):
+    @staticmethod
+    def frac_to_abs(coord:np.ndarray,axes):
         if len(coord.shape) == 1 or coord.shape[0] == 1:
             return coord[0]*axes[0] + coord[1]*axes[1] + coord[2] * axes[2]
         else:
@@ -101,32 +102,37 @@ class ProcessGrid():
             max = self.max_frac
         else:
             max = np.array(max)
-        max = 
-        origin_new = self.Nearest_Coord(np.array(min))
-        dist = np.array((max - origin_new)*self.n[0],dtype=int)
+        origin_frac = self.Nearest_Coord(np.array(min))
+        dist = np.array((max - origin_frac)*self.n[0],dtype=int)
+
+        origin_abs = self.frac_to_abs(origin_frac,self.axis)
         new_grid = []
+
+        wrap = lambda x, tol=1e-12: 0.0 if abs(x % 1.0) < tol or abs(x % 1.0 - 1.0) < tol else x % 1.0
         for i in range(dist[0]):
                     for j in range(dist[1]):
                         for k in range(dist[2]):
-                            # Coordinate of the voxel corner
-                            coord = origin_new + np.array([i/(self.n[0]),j/(self.n[1]),k/(self.n[2])])
-                            weight = self.cube[int(coord[0]%1)*self.n[0], int(coord[1] %1)*self.n[1], int(coord[2]%1)*self.n[2] ]
-                            new_grid.append([coord[0], coord[1], coord[2], weight])
+                            # Coordinate of the voxel corner+
+                            coord = origin_frac +np.array([i/(self.n[0]),j/(self.n[1]),k/(self.n[2])])
+                            weight = self.cube[int(wrap(coord[0])*self.n[0]), int(wrap(coord[1])*self.n[1]),int(wrap(coord[2])*self.n[2]) ] # type: ignore
+                            coord = self.frac_to_abs(coord,self.axis)
+                            new_grid.append([coord[0], coord[1], coord[2], weight]) # type: ignore
         return new_grid
+    
     def Expand_frac(self,min,max=[]):
         if max == []:
             max = self.max_frac
         else:
             max = np.array(max)
-        origin_new = self.Nearest_Coord(np.array(min))
-        dist = np.array((max - origin_new)*self.n[0],dtype=int)
+        origin_frac = self.Nearest_Coord(np.array(min))
+        dist = np.array((max - origin_frac)*self.n[0],dtype=int)
         new_grid = []
         for i in range(dist[0]):
                     for j in range(dist[1]):
                         for k in range(dist[2]):
                             # Coordinate of the voxel corner
-                            coord = origin_new + np.array([i/(self.n[0]),j/(self.n[1]),k/(self.n[2])])
-                            weight = self.cube[int(coord[0]%1)*self.n[0], int(coord[1] %1)*self.n[1], int(coord[2]%1)*self.n[2] ]
+                            coord = origin_frac + np.array([i/(self.n[0]),j/(self.n[1]),k/(self.n[2])])
+                            weight = self.cube[int(coord[0]%1)*self.n[0], int(coord[1] %1)*self.n[1], int(coord[2]%1)*self.n[2] ] # type: ignore
                             new_grid.append([coord[0], coord[1], coord[2], weight])
         return new_grid
     
@@ -136,6 +142,6 @@ class ProcessGrid():
         
 c = CubeFile("defc_afm1_up.cube")
 grid = ProcessGrid(c)
-grid.Expand(min=[-0.1,0,0])
+g=grid.Expand_abs(min=[-0.1,0,0])
 pass
 
