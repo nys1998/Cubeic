@@ -1,6 +1,7 @@
 #Cube file read and process
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
+from itertools import combinations
 
 class CubeFile:
     """
@@ -56,8 +57,8 @@ class CubeFile:
                 for k in range(shape[2]):
                     # Coordinate of the voxel corner
                     if fractional==False:
-                        coord = self.origin + (i * axis[0]/shape[0] +
-                                            j * axis[1]/shape[1] + k * axis[2]/shape[2])
+                        coord = self.origin + (i * axis[0] +
+                                            j * axis[1] + k * axis[2])
                     else:
                         coord = [i/(shape[0]),j/(shape[1]),k/(shape[2])]
                     weight = self.data[i, j, k] # type: ignore
@@ -100,20 +101,25 @@ class ProcessGrid():
             return coord[:,0]*axes[0] + coord[:,1]*axes[1] + coord[:,2]*axes[2]
 
     @staticmethod
-    def abs_to_frac(coord:np.ndarray,axes):
+    def abs_to_frac(coord,axes):
+        coord = np.array(coord)
         return (np.linalg.inv(axes) @ coord.T).T
         # if len(coord.shape) == 1 or coord.shape[0] == 1:
         #     return np.matmul(np.linalg.inv(axes),coord)
         # if len(coord.shape) == 1 or coord.shape[0] == 1:
         #     return 
 
-    def map_to_cell(self,coord):
-        wrap = lambda x, tol=1e-12: 0.0 if abs(x % 1.0) < tol or abs(x % 1.0 - 1.0) < tol else x % 1.0
-        coord = self.abs_to_frac(coord)
-        return self.frac_to_abs([int(wrap(coord[0])*self.n[0]), int(wrap(coord[1])*self.n[1]),int(wrap(coord[2])*self.n[2])])
+    # def map_to_cell(self,coord):
+    #     wrap = lambda x, tol=1e-12: 0.0 if abs(x % 1.0) < tol or abs(x % 1.0 - 1.0) < tol else x % 1.0
+    #     coord = self.abs_to_frac(coord)
+    #     return self.frac_to_abs([int(wrap(coord[0])*self.n[0]), int(wrap(coord[1])*self.n[1]),int(wrap(coord[2])*self.n[2])])
 
-    def interpolate(self,coord):
-        return 
+    @staticmethod
+    def one_arr(i):
+        i = int(i)
+        arr = np.array([0,0,0])
+        arr[i] = 1
+        return arr
     
     def Expand_abs(self,min,max=[]):
         if len(max) == 0:
@@ -155,19 +161,61 @@ class ProcessGrid():
         return new_grid
     
 
-    def around_point(self,coord,length=1):
+    def around_point(self,coord,radius=1):
         # self.interpolator = LinearNDInterpolator(self.cube.get_coordinate(), values)
+        # coord_frac = self.abs_to_frac(coord,self.axis*self.n[0])
+        data = self.data[np.where(np.linalg.norm(self.data[:,:-1]-coord,axis=1) < radius)]
+
         vertices = []
-        x = np.arange(-length/2,length/2,)
-        grid = np.meshgrid()
-        # for i in [-1,1]:
-        #     for j in [-1,1]:
-        #         for k in [-1,1]:
-        #             vertices.append(coord + i*np.array([length/2,0,0])+j*np.array([0,length/2,0]) + k*np.array([0,0,length/2]))
-        # vertices = self.abs_to_frac(np.array(vertices),np.array(self.axis)*self.n[0])                    
-        # min = np.min(vertices,axis=0)
-        # max = np.max(vertices,axis=0)
-        return self.Expand_abs(self.abs_to_frac(vertices[0],self.axis*self.n[0]),self.abs_to_frac(vertices[-1],self.axis*self.n[0]))
+        for i in range(3):
+            for j in [-1,1]:
+                    if coord[i] + j < 0 or coord[i] + j > 1:
+                        vertices.append(j)
+                        temp = self.data[np.where(np.linalg.norm(self.data[:,:-1]-coord+j*self.one_arr(i)
+                                                                 ,axis=1) < radius)]      
+                        temp[:,:-1] = temp[:,:-1]+j*self.one_arr(i)
+                        data = np.vstack((data,temp))
+                    else:
+                        vertices.append(0)
+        for i in range(3):
+            for j in [-1,1]:
+                    for m in range(3):
+                        if i == m:
+                            continue
+                        for k in [-1,1]:
+                            # if coord[i] + j < 0 or coord[i] + j > 1:
+                            temp = self.data[np.where(np.linalg.norm(self.data[:,:-1]-coord+j*self.one_arr(i)
+                                                                +k*self.one_arr(m),axis=1) < radius)]      
+                            temp[:,:-1] = temp[:,:-1]+j*self.one_arr(i) +k*self.one_arr(m)
+                            data = np.vstack((data,temp))
+                        for p in range(3):
+                            if i == p  or m == p:
+                                 continue
+                            for q in [-1,1]:
+                                    # if coord[i] + j < 0 or coord[i] + j > 1:
+                                    temp = self.data[np.where(np.linalg.norm(self.data[:,:-1]-coord+j*self.one_arr(i)
+                                                            +k*self.one_arr(m)+q*self.one_arr(p),axis=1) < radius)]      
+                                    temp[:,:-1] = temp[:,:-1]+j*self.one_arr(i) +k*self.one_arr(m)+q*self.one_arr(p)
+                                    data = np.vstack((data,temp))    
+        vertices=np.array(vertices)
+        if len(np.nonzero(vertices)) == 0:
+            return data
+        return data
+
+        ind = np.where(vertices != 0)
+        if len(ind) >= 2:  
+            for k in combinations(ind,r=2):
+                temp = self.data[np.where(np.linalg.norm(self.data[:,:-1]-coord+vertices[k[0]]*self.one_arr(np.ceil(k[0]/2)) 
+                                                    + vertices[k[1]]*self.one_arr(np.ceil(k[1]/2)),axis=1) < radius)]      
+                temp[:,:-1] = temp[:,:-1]+j*self.one_arr(i)
+                data = np.vstack((data,temp))
+
+            if len(ind) == 3:
+                temp = self.data[np.where(np.linalg.norm(self.data[:,:-1]-coord+vertices[ind[0]]*self.one_arr(0) 
+                                    + vertices[ind[1]]*self.one_arr(1)+ vertices[ind[2]]*self.one_arr(2),axis=1) < radius)]      
+                temp[:,:-1] = temp[:,:-1]+j*self.one_arr(i)
+                data = np.vstack((data,temp))
+        return data
         
 c = CubeFile("defc_afm1_up.cube")
 grid = ProcessGrid(c)
