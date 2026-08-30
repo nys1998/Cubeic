@@ -41,7 +41,7 @@ class CubeFile:
             for i in range(self.natoms):
                 line = f.readline().split()
                 self.elem.append(int(line[0]))
-                self.atoms.append(np.array(line[1:],dtype=float))
+                self.atoms.append(np.array(line[2:],dtype=float)*self.BOHR2ANG)
 
             remaining = f.read()
             self.data = np.fromstring(remaining, dtype=float, sep=' ').reshape(
@@ -180,7 +180,7 @@ class ProcessGrid():
         # Build KD-tree for fast nearest neighbor search
         self.kdtree = KDTree(self.grid)
 
-        npt = 30 
+        npt = 50 
         while True:
             x = np.linspace(coord[0]-length/2,coord[0]+length/2, npt)
             y = np.linspace(coord[1]-length/2,coord[1]+length/2, npt)
@@ -199,8 +199,9 @@ class ProcessGrid():
                 return mapped
         
 c = CubeFile("defc_afm1_up.cube")
+print(c.atoms[2])
 grid = ProcessGrid(c)
-g = grid.around_point([0,0,0])
+g = grid.around_point(c.atoms[2],length=3) # type: ignore
 np.savetxt('test1.txt',g)
 # g=grid.Expand_abs(min=[-0.1,0,0])
 pass
