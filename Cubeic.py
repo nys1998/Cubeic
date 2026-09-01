@@ -83,6 +83,9 @@ class ProcessGrid():
         self.frac_coord = cube.get_coordinates(fractional=True)
         self.max_frac = np.max(self.frac_coord[:,:-1],axis=0)
         self.interpolator = None
+        self.is_orthogonal = np.allclose(self.axis.T @ self.axis, 
+                                         np.diag(np.diag(self.axis.T @ self.axis)))
+
         
         # Pre-compute absolute grid positions
         self.grid = self.data[:, :-1]
@@ -110,9 +113,25 @@ class ProcessGrid():
         coord = np.array(coord)
         return (np.linalg.inv(axes) @ coord.T).T
 
+    @staticmethod
+    def wrap(x, tol=1e-2):
+        """Wraps values of x to the range [0, 1), snapping values
+
+        close to integers (within tol) to 0.0.
+        """
+        remainder = np.asarray(x) % 1.0
+
+        # Identify values close to 0.0 or close to 1.0 within tolerance
+        close_to_zero = np.isclose(remainder, 0.0, atol=tol)
+        close_to_one = np.isclose(remainder, 1.0, atol=tol)
+
+        # Snap values close to the boundaries to 0.0
+        return np.where(close_to_zero | close_to_one, 0.0, remainder)
+    
     def map_to_cell(self,coord):
-        wrap = lambda x, tol=1e-12: np.where((np.abs(x % 1.0) < tol) | (np.abs(x % 1.0 - 1.0) < tol), 0.0,
-        x % 1.0)
+        # wrap = lambda x, tol=1e-12: np.where((np.abs(x % 1.0) < tol) | (np.abs(x % 1.0 - 1.0) < tol), 0.0,
+        # x % 1.0)
+        wrap = lambda x : self.wrap(x)
         coord_wrapped = wrap(self.abs_to_frac(coord,self.axis_scaled))
         coord_wrapped = self.frac_to_abs(coord_wrapped,self.axis_scaled)
         dif = coord_wrapped - coord
@@ -180,7 +199,10 @@ class ProcessGrid():
         # Build KD-tree for fast nearest neighbor search
         self.kdtree = KDTree(self.grid)
 
-        npt = 50 
+        # if self.is_orthogonal == True:
+        #     npt = int(np.min(np.diag(self.n*self.axis_scaled/length))) # type: ignore
+        # else:
+        npt = 56
         while True:
             x = np.linspace(coord[0]-length/2,coord[0]+length/2, npt)
             y = np.linspace(coord[1]-length/2,coord[1]+length/2, npt)
@@ -188,21 +210,21 @@ class ProcessGrid():
             # Create meshgrid
             X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
-            # Combine into array of [x, y, z] points
+            # Combine into array of [x,  y, z] points
             combined = np.stack([X, Y, Z], axis=-1).reshape(-1, 3)
             mapped = self.map_to_cell(combined)
-            if mapped.shape != np.unique(mapped,axis=0).shape:
-                npt -= 1
-                print(npt)
-            else:
-                print(npt,'OK')
-                return mapped
+            # if mapped.shape != np.unique(mapped,axis=0).shape:
+            #     npt -= 1
+            #     print(npt)
+            # else:
+            #     print(npt,'OK')
+            return np.unique(mapped,axis=0)
         
-c = CubeFile("defc_afm1_up.cube")
+c = CubeFile("chg_afm2.cube")
 print(c.atoms[2])
 grid = ProcessGrid(c)
 g = grid.around_point(c.atoms[2],length=3) # type: ignore
-np.savetxt('test1.txt',g)
+np.savetxt('chg_afm2.txt',g)
 # g=grid.Expand_abs(min=[-0.1,0,0])
 pass
 
