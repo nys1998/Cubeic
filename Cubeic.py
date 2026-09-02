@@ -199,10 +199,11 @@ class ProcessGrid():
         # Build KD-tree for fast nearest neighbor search
         self.kdtree = KDTree(self.grid)
 
-        # if self.is_orthogonal == True:
-        #     npt = int(np.min(np.diag(self.n*self.axis_scaled/length))) # type: ignore
-        # else:
-        npt = 56
+        if self.is_orthogonal == True:
+            npt = 56
+            #int(np.min(np.diag(self.n*self.axis_scaled/length))) # type: ignore
+        else:
+            npt = 50
         while True:
             x = np.linspace(coord[0]-length/2,coord[0]+length/2, npt)
             y = np.linspace(coord[1]-length/2,coord[1]+length/2, npt)
@@ -219,12 +220,6 @@ class ProcessGrid():
             # else:
             #     print(npt,'OK')
             return np.unique(mapped,axis=0)
-        
-c = CubeFile("chg_afm2.cube")
-print(c.atoms[2])
-grid = ProcessGrid(c)
-g = grid.around_point(c.atoms[2],length=3) # type: ignore
-np.savetxt('chg_afm2.txt',g)
-# g=grid.Expand_abs(min=[-0.1,0,0])
-pass
+
+
 
